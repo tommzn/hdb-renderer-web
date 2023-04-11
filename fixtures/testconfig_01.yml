@@ -1,0 +1,7 @@
+
+log:
+  type: local
+  loglevel: debug
+
+db:
+  type: xxx

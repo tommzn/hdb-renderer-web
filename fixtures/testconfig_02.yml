@@ -1,0 +1,9 @@
+
+log:
+  type: local
+  loglevel: debug
+
+db:
+  type: sqlite3
+  sqlite3:
+    file: /tmp/sqlite_test.db

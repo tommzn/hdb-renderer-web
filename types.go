@@ -56,6 +56,7 @@ type DataSourceRepository struct {
 	db     *sql.DB
 }
 
+// WebServer handles all incoming HTTP requests.
 type webServer struct {
 	port       string
 	conf       config.Config
@@ -63,6 +64,7 @@ type webServer struct {
 	httpServer *http.Server
 }
 
+// OsFlags contains all possible flag for cli calls.
 type osFlags struct {
 	configFile   string
 	configSource string

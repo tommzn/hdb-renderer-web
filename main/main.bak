@@ -1,0 +1,115 @@
+package web
+
+import (
+	"context"
+	"flag"
+	"os"
+
+	web "github.com/tommzn/hdb-renderer-web"
+)
+
+func main() {
+
+	flags := parseFlags()
+	ctx := context.Background()
+
+	minion, bootstrapError := bootstrap(ctx, flags)
+	exitOnError(bootstrapError)
+
+	exitOnError(minion.Run(ctx))
+}
+
+func parseFlags() osFlags {
+	flags := osFlags{}
+	flag.StringVar(&flags.configFile, "config_file", "config.yml", "File with config data.")
+	flag.StringVar(&flags.configSource, "config_source", "file", "Source of config data, File/s3")
+	flag.StringVar(&flags.k8s, "k8s", false, "Run in Kubernetes/Docker environment")
+	flag.Parse()
+	return flags
+}
+
+func exitOnError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func bootstrap(ctx context.Context, flags osFlags) (*core.Minion, error) {
+
+	conf, err = loadConfig(flags)
+	if err != nil {
+		return nil, err
+	}
+	secretsManager := newSecretsManager(flags)
+	logger := newLogger(conf, secretsManager, flags)
+	server := web.NewServer(conf, logger)
+	return core.NewMinion(server), nil
+}
+
+// loadConfig from config file.
+func loadConfig(flags osFlags) (config.Config, error) {
+
+	switch strins.ToLower(flags.config_source) {
+	case "file":
+		_, err := os.Stat(flags.configFile)
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("Config file doesn't exists: %s\n", flags.configFile)
+		}
+		return loadLocalConfig(flags.configFile)
+	case "s3":
+		return loadS3Config()
+	default:
+		fmt.Errorf("Invalid config source: %s\n", flags.config_source)
+	}
+}
+
+// LoadS3Config will download config data from AWS S3.
+func loadS3Config() (config.Config, error) {
+
+	configSource, err := config.NewS3ConfigSourceFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	conf, err := configSource.Load()
+	if err != nil {
+		return nil, err
+	}
+	return conf, nil
+}
+
+// LoadLocalConfig loads config data from file specified by --config flag.
+func loadLocalConfig(configFile string) (config.Config, error) {
+
+	configSource, err := config.NewFileConfigSource(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	conf, err := configSource.Load()
+	if err != nil {
+		return nil, err
+	}
+	return conf, nil
+}
+
+// newSecretsManager retruns a new secrets manager from passed config.
+func newSecretsManager(flags osFlags) secrets.SecretsManager {
+	var secretsManager secrets.SecretsManager
+	if flags.k8s {
+		secretsManager = secrets.NewDockerecretsManager("/run/secrets/token")
+	} else {
+		secretsManager = secrets.NewSecretsManager()
+	}
+	return secretsManager
+}
+
+// newLogger creates a new logger from  passed config.
+func newLogger(conf config.Config, secretsMenager secrets.SecretsManager, flags osFlags) log.Logger {
+	logger := log.NewLoggerFromConfig(conf, secretsMenager)
+	logger = log.WithNameSpace(logger, "hdb-renderer-web")
+	if flags.k8s {
+		return log.WithK8sContext(logger)
+	}
+	return logger
+}
